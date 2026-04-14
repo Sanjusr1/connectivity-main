@@ -1,0 +1,99 @@
+[
+  {
+    "id": "piezo_vibration",
+    "name": "Piezoelectric Vibration Sensor",
+    "icon": "vibration",
+    "purpose": "Detects mechanical vibrations from throat or chest surface to capture speech-related vibrations and articulatory movements.",
+    "samplingRate": "1000 Hz",
+    "features": [
+      "RMS (Root Mean Square)",
+      "Peak Amplitude",
+      "Zero Crossing Rate",
+      "Spectral Energy"
+    ],
+    "role": "Captures vibration patterns during phoneme production. The RMS and spectral features help differentiate between voiced and unvoiced phonemes, aiding in phoneme prediction and speech reconstruction.",
+    "unit": "mV",
+    "range": "0–500 mV"
+  },
+  {
+    "id": "mems_microphone",
+    "name": "MEMS Microphone (ICS-43434)",
+    "icon": "mic",
+    "purpose": "High-fidelity digital microphone for capturing acoustic signals and ambient sound with high SNR (Signal-to-Noise Ratio).",
+    "samplingRate": "16000 Hz",
+    "features": [
+      "MFCC (Mel-Frequency Cepstral Coefficients)",
+      "Spectral Centroid",
+      "Spectral Bandwidth",
+      "Chroma Features",
+      "Zero Crossing Rate"
+    ],
+    "role": "Primary audio sensor for phoneme recognition. MFCC features are extracted for machine learning-based speech classification. Works alongside the vibration sensor for multimodal phoneme prediction.",
+    "unit": "dB SPL",
+    "range": "30–120 dB"
+  },
+  {
+    "id": "airflow_sensor",
+    "name": "Airflow Sensor (FS3000)",
+    "icon": "air",
+    "purpose": "Measures airflow velocity near the mouth or nose to track breathing patterns and speech-related airflow changes.",
+    "samplingRate": "100 Hz",
+    "features": [
+      "Airflow Velocity (m/s)",
+      "Flow Rate",
+      "Peak Flow",
+      "Breathing Cycle Detection"
+    ],
+    "role": "Detects speech onset by monitoring airflow bursts. Airflow exceeding a threshold indicates speech activity. Used for voice activity detection (VAD) and distinguishing plosive vs. fricative phonemes.",
+    "unit": "m/s",
+    "range": "0–7.23 m/s"
+  },
+  {
+    "id": "pressure_sensor",
+    "name": "Pressure Sensor (XGZP6897D)",
+    "icon": "compress",
+    "purpose": "Measures differential air pressure to detect subtle pressure changes during speech, swallowing, and respiratory events.",
+    "samplingRate": "100 Hz",
+    "features": [
+      "Differential Pressure (Pa)",
+      "Peak Pressure",
+      "Mean Pressure",
+      "Pressure Waveform"
+    ],
+    "role": "Complements the airflow sensor by providing pressure data during speech events. Pressure patterns correlate with specific consonant and vowel articulations, improving phoneme classification accuracy.",
+    "unit": "Pa",
+    "range": "0–1000 Pa"
+  },
+  {
+    "id": "imu_sensor",
+    "name": "IMU (LSM6DSO)",
+    "icon": "3d_rotation",
+    "purpose": "6-axis Inertial Measurement Unit (accelerometer + gyroscope) for tracking head, jaw, and neck movements during speech.",
+    "samplingRate": "416 Hz",
+    "features": [
+      "Acceleration (X, Y, Z)",
+      "Gyroscope (X, Y, Z)",
+      "Euler Angles",
+      "Motion Intensity"
+    ],
+    "role": "Captures articulatory gestures and head movements correlated with speech patterns. IMU data helps normalize other sensor readings against motion artifacts and provides additional features for phoneme prediction models.",
+    "unit": "g / °/s",
+    "range": "±16g / ±2000°/s"
+  },
+  {
+    "id": "temp_humidity",
+    "name": "Temperature & Humidity (ASAIR ATH25)",
+    "icon": "thermostat",
+    "purpose": "Monitors ambient temperature and humidity levels for environmental context and sensor calibration purposes.",
+    "samplingRate": "1 Hz",
+    "features": [
+      "Temperature (°C)",
+      "Relative Humidity (%)",
+      "Dew Point",
+      "Heat Index"
+    ],
+    "role": "Provides environmental normalization data. Temperature and humidity affect sound propagation and sensor sensitivity. These values are used to calibrate and normalize readings from other sensors for consistent performance across varying conditions.",
+    "unit": "°C / %RH",
+    "range": "-40–80°C / 0–100%"
+  }
+]
