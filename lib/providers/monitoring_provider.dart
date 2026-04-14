@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../models/sensor_connection_config.dart';
 import '../models/sensor_data.dart';
@@ -48,7 +49,7 @@ class MonitoringProvider extends ChangeNotifier {
   bool _storeLocally = true;
   bool _storeInCloud = false;
   SensorConnectionConfig _connectionConfig = const SensorConnectionConfig(
-    connectionType: SensorConnectionType.wifi,
+    connectionType: SensorConnectionType.none,
     wifiPort: 9000,
   );
   String? _lastError;
@@ -74,6 +75,8 @@ class MonitoringProvider extends ChangeNotifier {
   String get connectionState => _connectionState;
   String get connectionSummary {
     switch (_connectionConfig.connectionType) {
+      case SensorConnectionType.none:
+        return 'Choose Wi-Fi, USB, or Mock';
       case SensorConnectionType.mock:
         return 'Mock generator';
       case SensorConnectionType.wifi:
@@ -83,7 +86,7 @@ class MonitoringProvider extends ChangeNotifier {
         }
         return 'TCP ${_connectionConfig.wifiHost}:${_connectionConfig.wifiPort}';
       case SensorConnectionType.usb:
-        return 'Android USB sensor hub';
+        return 'USB sensor hub';
     }
   }
 
@@ -97,6 +100,13 @@ class MonitoringProvider extends ChangeNotifier {
     }
 
     _lastError = null;
+    if (_connectionConfig.connectionType == SensorConnectionType.none) {
+      _connectionState = 'Disconnected';
+      _lastError = 'Choose a connection mode before starting monitoring.';
+      notifyListeners();
+      return;
+    }
+
     _connectionState = 'Connecting...';
     notifyListeners();
 
@@ -109,15 +119,22 @@ class MonitoringProvider extends ChangeNotifier {
       return;
     }
 
-    _subscription = _streamService
-        .streamData(config: _connectionConfig)
-        .listen(
-          _onReading,
-          onError: _onStreamError,
-          onDone: _onStreamDone,
-          cancelOnError: true,
-        );
-    notifyListeners();
+    try {
+      _subscription = _streamService
+          .streamData(config: _connectionConfig)
+          .listen(
+            _onReading,
+            onError: _onStreamError,
+            onDone: _onStreamDone,
+            cancelOnError: false,
+          );
+      notifyListeners();
+    } catch (error) {
+      _subscription = null;
+      _connectionState = 'Error';
+      _lastError = error.toString();
+      notifyListeners();
+    }
   }
 
   Future<void> stopMonitoring() async {
@@ -217,9 +234,8 @@ class MonitoringProvider extends ChangeNotifier {
   }
 
   void _onStreamError(Object error, StackTrace stackTrace) {
-    _subscription = null;
     _connectionState = 'Error';
-    _lastError = error.toString();
+    _lastError = _formatConnectionError(error);
     notifyListeners();
   }
 
@@ -236,5 +252,25 @@ class MonitoringProvider extends ChangeNotifier {
     _subscription?.cancel();
     _streamService.disconnect();
     super.dispose();
+  }
+
+  String _formatConnectionError(Object error) {
+    if (error is PlatformException) {
+      final code = error.code.trim();
+      final message = (error.message ?? 'Unknown platform error').trim();
+      switch (code) {
+        case 'USB_PERMISSION_DENIED':
+          return 'USB permission denied. Accept the USB prompt on Android and try again.';
+        case 'USB_NOT_FOUND':
+          return 'No readable USB sensor device found. Check cable/OTG and sensor power.';
+        case 'USB_STREAM_ERROR':
+          return 'Unable to start USB stream: $message';
+        case 'USB_READ_ERROR':
+          return 'USB read failed: $message';
+        default:
+          return '$code: $message';
+      }
+    }
+    return error.toString();
   }
 }

@@ -28,6 +28,10 @@ class LiveSensorStreamService implements SensorStreamService {
   @override
   Stream<SensorData> streamData({required SensorConnectionConfig config}) {
     switch (config.connectionType) {
+      case SensorConnectionType.none:
+        throw const SensorConnectionException(
+          'Choose a connection mode before starting monitoring.',
+        );
       case SensorConnectionType.mock:
         return _buildMockStream();
       case SensorConnectionType.wifi:
@@ -110,9 +114,30 @@ class LiveSensorStreamService implements SensorStreamService {
 
           await _usbControlChannel.invokeMethod<String>('startUsbStream');
         } on PlatformException catch (error) {
+          final code = error.code.trim();
+          final message = (error.message ?? 'Unable to start USB collection.').trim();
+          String friendlyMessage;
+          switch (code) {
+            case 'USB_PERMISSION_DENIED':
+              friendlyMessage =
+                  'USB permission denied. Accept the permission prompt and retry.';
+              break;
+            case 'USB_NOT_FOUND':
+              friendlyMessage =
+                  'No readable USB sensor device found. Check cable/OTG and sensor power.';
+              break;
+            case 'USB_STREAM_ERROR':
+              friendlyMessage = 'Unable to start USB stream: $message';
+              break;
+            case 'USB_READ_ERROR':
+              friendlyMessage = 'USB read failed: $message';
+              break;
+            default:
+              friendlyMessage = '$code: $message';
+          }
           controller.addError(
             SensorConnectionException(
-              error.message ?? 'Unable to start USB collection.',
+              friendlyMessage,
             ),
           );
         }

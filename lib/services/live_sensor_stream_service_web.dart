@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:html' as html;
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:math';
@@ -15,7 +16,13 @@ class LiveSensorStreamService implements SensorStreamService {
   JSObject? _reader;
   bool _shouldRead = false;
   final List<int> _usbPacketBuffer = <int>[];
+  final List<int> _wifiPacketBuffer = <int>[];
   Map<String, dynamic> _portMetadata = const {};
+  html.WebSocket? _wifiSocket;
+  StreamSubscription<html.MessageEvent>? _wifiMessageSubscription;
+  StreamSubscription<html.Event>? _wifiOpenSubscription;
+  StreamSubscription<html.CloseEvent>? _wifiCloseSubscription;
+  StreamSubscription<html.Event>? _wifiErrorSubscription;
 
   @override
   Future<void> prepareConnection({
@@ -73,12 +80,14 @@ class LiveSensorStreamService implements SensorStreamService {
   @override
   Stream<SensorData> streamData({required SensorConnectionConfig config}) {
     switch (config.connectionType) {
+      case SensorConnectionType.none:
+        throw const SensorConnectionException(
+          'Choose a connection mode before starting monitoring.',
+        );
       case SensorConnectionType.mock:
         return _buildMockStream();
       case SensorConnectionType.wifi:
-        throw const SensorConnectionException(
-          'Wi-Fi socket streaming is not available in the web build yet. Use USB serial or Mock mode in Chrome.',
-        );
+        return _buildWifiStream(config);
       case SensorConnectionType.usb:
         return _buildUsbStream(config);
     }
@@ -159,6 +168,185 @@ class LiveSensorStreamService implements SensorStreamService {
       onCancel: disconnect,
     );
     return controller.stream;
+  }
+
+  Stream<SensorData> _buildWifiStream(SensorConnectionConfig config) {
+    if (config.wifiHost.trim().isEmpty) {
+      throw const SensorConnectionException(
+        'Enter the Wi-Fi sensor hub host or IP address.',
+      );
+    }
+
+    late StreamController<SensorData> controller;
+    controller = StreamController<SensorData>(
+      onListen: () async {
+        try {
+          await disconnect();
+
+          final url = _buildWifiSocketUrl(config);
+          final socket = html.WebSocket(url);
+          socket.binaryType = 'arraybuffer';
+          _wifiSocket = socket;
+
+          _wifiOpenSubscription = socket.onOpen.listen((_) {});
+          _wifiMessageSubscription = socket.onMessage.listen((event) async {
+            try {
+              final frames = await _decodeWifiMessage(event.data);
+              for (final frame in frames) {
+                controller.add(frame);
+              }
+            } catch (error) {
+              controller.addError(
+                error is SensorConnectionException
+                    ? error
+                    : SensorConnectionException(
+                        'Wi-Fi packet decode failed: $error',
+                      ),
+              );
+            }
+          });
+
+          _wifiErrorSubscription = socket.onError.listen((_) {
+            controller.addError(
+              const SensorConnectionException(
+                'Wi-Fi socket error. Verify host/IP, port, and CORS/proxy setup.',
+              ),
+            );
+          });
+
+          _wifiCloseSubscription = socket.onClose.listen((event) {
+            final trailingFrame = _flushTrailingWifiFrame();
+            if (trailingFrame != null) {
+              controller.add(trailingFrame);
+            }
+            if (!controller.isClosed) {
+              controller.close();
+            }
+          });
+        } catch (error) {
+          controller.addError(
+            error is SensorConnectionException
+                ? error
+                : SensorConnectionException('Wi-Fi connection failed: $error'),
+          );
+        }
+      },
+      onCancel: disconnect,
+    );
+    return controller.stream;
+  }
+
+  String _buildWifiSocketUrl(SensorConnectionConfig config) {
+    final rawHost = config.wifiHost.trim();
+    if (rawHost.isEmpty) {
+      throw const SensorConnectionException(
+        'Enter the Wi-Fi sensor hub host or IP address.',
+      );
+    }
+
+    final defaultScheme = Uri.base.scheme == 'https' ? 'wss' : 'ws';
+    final hasScheme =
+        rawHost.startsWith('ws://') || rawHost.startsWith('wss://');
+    final baseUri = Uri.parse(hasScheme ? rawHost : '$defaultScheme://$rawHost');
+    final hasPort = baseUri.hasPort;
+    final normalized = hasPort ? baseUri : baseUri.replace(port: config.wifiPort);
+    return normalized.toString();
+  }
+
+  Future<List<SensorData>> _decodeWifiMessage(dynamic data) async {
+    if (data == null) {
+      return const <SensorData>[];
+    }
+
+    if (data is String) {
+      return _decodeWifiTextChunk(data);
+    }
+
+    if (data is ByteBuffer) {
+      return _decodeWifiBytesChunk(data.asUint8List());
+    }
+
+    if (data is Uint8List) {
+      return _decodeWifiBytesChunk(data);
+    }
+
+    if (data is List<int>) {
+      return _decodeWifiBytesChunk(Uint8List.fromList(data));
+    }
+
+    if (data is html.Blob) {
+      final bytes = await _blobToBytes(data);
+      return _decodeWifiBytesChunk(bytes);
+    }
+
+    throw const SensorConnectionException(
+      'Wi-Fi socket returned an unsupported payload format.',
+    );
+  }
+
+  List<SensorData> _decodeWifiTextChunk(String chunk) {
+    final normalized = chunk.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    return normalized
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .map(
+          (line) => _decodePacketLine(
+            line,
+            rawBytesBase64: base64Encode(utf8.encode(line)),
+          ),
+        )
+        .toList();
+  }
+
+  List<SensorData> _decodeWifiBytesChunk(Uint8List chunk) {
+    final frames = <SensorData>[];
+    for (final byte in chunk) {
+      if (byte == 10) {
+        if (_wifiPacketBuffer.isNotEmpty) {
+          frames.add(_decodePacketBytes(List<int>.from(_wifiPacketBuffer)));
+          _wifiPacketBuffer.clear();
+        }
+      } else {
+        _wifiPacketBuffer.add(byte);
+      }
+    }
+    return frames;
+  }
+
+  SensorData? _flushTrailingWifiFrame() {
+    if (_wifiPacketBuffer.isEmpty) {
+      return null;
+    }
+    final frame = _decodePacketBytes(List<int>.from(_wifiPacketBuffer));
+    _wifiPacketBuffer.clear();
+    return frame;
+  }
+
+  Future<Uint8List> _blobToBytes(html.Blob blob) async {
+    final reader = html.FileReader();
+    final completer = Completer<Uint8List>();
+
+    reader.onLoadEnd.first.then((_) {
+      final result = reader.result;
+      if (result is ByteBuffer) {
+        completer.complete(result.asUint8List());
+      } else if (result is Uint8List) {
+        completer.complete(result);
+      } else {
+        completer.completeError(
+          const SensorConnectionException('Unable to decode Wi-Fi blob payload.'),
+        );
+      }
+    });
+
+    reader.onError.first.then((_) {
+      completer.completeError(
+        const SensorConnectionException('Unable to read Wi-Fi blob payload.'),
+      );
+    });
+
+    reader.readAsArrayBuffer(blob);
+    return completer.future;
   }
 
   List<SensorData> _decodeUsbChunk(Uint8List chunk) {
@@ -282,6 +470,19 @@ class LiveSensorStreamService implements SensorStreamService {
   Future<void> disconnect() async {
     _shouldRead = false;
     _usbPacketBuffer.clear();
+    _wifiPacketBuffer.clear();
+
+    await _wifiMessageSubscription?.cancel();
+    _wifiMessageSubscription = null;
+    await _wifiOpenSubscription?.cancel();
+    _wifiOpenSubscription = null;
+    await _wifiCloseSubscription?.cancel();
+    _wifiCloseSubscription = null;
+    await _wifiErrorSubscription?.cancel();
+    _wifiErrorSubscription = null;
+
+    _wifiSocket?.close();
+    _wifiSocket = null;
 
     if (_reader != null) {
       try {

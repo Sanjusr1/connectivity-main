@@ -1,4 +1,4 @@
-enum SensorConnectionType { mock, wifi, usb }
+enum SensorConnectionType { none, mock, wifi, usb }
 
 class SensorConnectionConfig {
   const SensorConnectionConfig({
@@ -29,6 +29,8 @@ class SensorConnectionConfig {
 
   String get connectionLabel {
     switch (connectionType) {
+      case SensorConnectionType.none:
+        return 'Not selected';
       case SensorConnectionType.mock:
         return 'Mock';
       case SensorConnectionType.wifi:

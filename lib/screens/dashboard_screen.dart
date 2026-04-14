@@ -120,6 +120,9 @@ class _Controls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canStart =
+        monitor.connectionConfig.connectionType != SensorConnectionType.none;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: AppTheme.glassCard,
@@ -129,7 +132,7 @@ class _Controls extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: monitor.isMonitoring
                   ? monitor.stopMonitoring
-                  : monitor.startMonitoring,
+                  : (canStart ? monitor.startMonitoring : null),
               icon: Icon(monitor.isMonitoring ? Icons.stop : Icons.play_arrow),
               label: Text(
                 monitor.isMonitoring ? 'Stop Monitoring' : 'Start Monitoring',
@@ -334,6 +337,7 @@ class _ConnectionSettings extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           SegmentedButton<SensorConnectionType>(
+            emptySelectionAllowed: true,
             segments: const [
               ButtonSegment(
                 value: SensorConnectionType.wifi,
@@ -351,8 +355,14 @@ class _ConnectionSettings extends StatelessWidget {
                 label: Text('Mock'),
               ),
             ],
-            selected: {config.connectionType},
+            selected: config.connectionType == SensorConnectionType.none
+                ? const <SensorConnectionType>{}
+                : <SensorConnectionType>{config.connectionType},
             onSelectionChanged: (selection) {
+              if (selection.isEmpty) {
+                monitor.setConnectionType(SensorConnectionType.none);
+                return;
+              }
               monitor.setConnectionType(selection.first);
             },
           ),
@@ -408,11 +418,16 @@ class _ConnectionSettings extends StatelessWidget {
           _StatusRow(label: 'State', value: monitor.connectionState),
           if (monitor.lastError != null) ...[
             const SizedBox(height: 8),
-            Text(
-              monitor.lastError!,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.redAccent),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: AppTheme.glassCardWithColor(Colors.redAccent),
+              child: Text(
+                'Connection error: ${monitor.lastError!}',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.redAccent),
+              ),
             ),
           ],
         ],
