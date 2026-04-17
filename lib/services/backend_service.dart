@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/sensor_data.dart';
 
@@ -32,7 +33,8 @@ class BackendService {
       
       // Wait, we need actual auth because of Depends(auth.get_current_user) in FastAPI.
       // Let's register a user and get a token.
-      final userResp = await http.post(
+      // Register user (ignore result if already exists)
+      await http.post(
         Uri.parse('$baseUrl/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -55,8 +57,8 @@ class BackendService {
         _token = tokenData['access_token'];
       }
 
-      // 2. Register Device
-      final deviceResp = await http.post(
+      // 2. Register Device (ignore result if already exists)
+      await http.post(
         Uri.parse('$baseUrl/devices/'),
         headers: _headers,
         body: jsonEncode({
@@ -80,7 +82,7 @@ class BackendService {
           Uri.parse('$baseUrl/sessions/'),
           headers: _headers,
           body: jsonEncode({
-            'name': 'Auto Session ' + DateTime.now().toIso8601String(),
+            'name': 'Auto Session ${DateTime.now().toIso8601String()}',
             'device_id': _currentDeviceId
           }),
         );
@@ -90,7 +92,7 @@ class BackendService {
         }
       }
     } catch (e) {
-      print('Failed to init session: $e');
+      debugPrint('Failed to init session: $e');
     } finally {
       _isInitializing = false;
     }
@@ -102,7 +104,7 @@ class BackendService {
     }
     
     if (_currentSessionId == null) {
-      print('Still no session ID, skipping cloud upload.');
+      debugPrint('Still no session ID, skipping cloud upload.');
       return;
     }
 
@@ -111,16 +113,16 @@ class BackendService {
       'timestamp': data.timestamp.toIso8601String(),
     };
     
-    if (data.temperature != null) bodyData['temperature'] = data.temperature;
-    if (data.humidity != null) bodyData['humidity'] = data.humidity;
-    if (data.airflow != null) bodyData['airflow'] = data.airflow;
-    if (data.pressure != null) bodyData['pressure'] = data.pressure;
-    if (data.vibrationRms != null) bodyData['vibrationRms'] = data.vibrationRms;
-    if (data.microphoneLevel != null) bodyData['microphoneLevel'] = data.microphoneLevel;
-    if (data.imuX != null) bodyData['imuX'] = data.imuX;
-    if (data.imuY != null) bodyData['imuY'] = data.imuY;
-    if (data.imuZ != null) bodyData['imuZ'] = data.imuZ;
-    if (data.rawFormat != null) bodyData['rawFormat'] = data.rawFormat;
+    bodyData['temperature'] = data.temperature;
+    bodyData['humidity'] = data.humidity;
+    bodyData['airflow'] = data.airflow;
+    bodyData['pressure'] = data.pressure;
+    bodyData['vibrationRms'] = data.vibrationRms;
+    bodyData['microphoneLevel'] = data.microphoneLevel;
+    bodyData['imuX'] = data.imuX;
+    bodyData['imuY'] = data.imuY;
+    bodyData['imuZ'] = data.imuZ;
+    bodyData['rawFormat'] = data.rawFormat;
     if (data.rawPacket != null) bodyData['rawPacket'] = data.rawPacket;
     if (data.rawBytesBase64 != null) bodyData['rawBytesBase64'] = data.rawBytesBase64;
 
@@ -131,10 +133,10 @@ class BackendService {
         body: jsonEncode(bodyData),
       );
       if (response.statusCode != 200) {
-        print('Failed to send data: ${response.statusCode}');
+        debugPrint('Failed to send data: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error sending data to backend: $e');
+      debugPrint('Error sending data to backend: $e');
     }
   }
 }
