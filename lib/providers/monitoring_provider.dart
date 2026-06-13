@@ -60,7 +60,7 @@ class MonitoringProvider extends ChangeNotifier {
   List<SensorData> get recentReadings => _history.reversed.take(8).toList();
   Set<String> get activeSensorIds => Set.unmodifiable(_activeSensorIds);
   Map<String, int> get framesBySensor => Map.unmodifiable(_framesBySensor);
-  bool get isMonitoring => _subscription != null;
+  bool get isMonitoring => _subscription != null || _connectionState == 'Connecting...';
   int get durationSeconds => _durationSeconds;
   int get totalFrames => _totalFrames;
   int get combinedSensorFrames =>
@@ -112,24 +112,39 @@ class MonitoringProvider extends ChangeNotifier {
 
     try {
       await _streamService.prepareConnection(config: _connectionConfig);
+      if (_connectionState == 'Disconnected') {
+        return;
+      }
     } catch (error) {
+      if (_connectionState == 'Disconnected') return;
       _connectionState = 'Error';
       _lastError = error.toString();
       notifyListeners();
       return;
     }
 
+    if (_connectionState == 'Disconnected') {
+      return;
+    }
+
     try {
       _subscription = _streamService
           .streamData(config: _connectionConfig)
+          .timeout(const Duration(seconds: 5))
           .listen(
             _onReading,
             onError: _onStreamError,
             onDone: _onStreamDone,
             cancelOnError: false,
           );
+      if (_connectionState == 'Disconnected') {
+        await _subscription?.cancel();
+        _subscription = null;
+        return;
+      }
       notifyListeners();
     } catch (error) {
+      if (_connectionState == 'Disconnected') return;
       _subscription = null;
       _connectionState = 'Error';
       _lastError = error.toString();
@@ -236,6 +251,9 @@ class MonitoringProvider extends ChangeNotifier {
   void _onStreamError(Object error, StackTrace stackTrace) {
     _connectionState = 'Error';
     _lastError = _formatConnectionError(error);
+    _subscription?.cancel();
+    _subscription = null;
+    _streamService.disconnect();
     notifyListeners();
   }
 
@@ -255,6 +273,9 @@ class MonitoringProvider extends ChangeNotifier {
   }
 
   String _formatConnectionError(Object error) {
+    if (error is TimeoutException) {
+      return 'Connection timed out: No data received for 5 seconds.';
+    }
     if (error is PlatformException) {
       final code = error.code.trim();
       final message = (error.message ?? 'Unknown platform error').trim();

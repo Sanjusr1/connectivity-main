@@ -52,3 +52,13 @@ backend/**/*.pyc
 backend/.pytest_cache/
 backend/.mypy_cache/
 backend/.ruff_cache/
+
+# Firebase Hosting CLI Cache
+.firebase/
+
+# Local SQLite databases
+*.db
+backend/*.db
+
+# Local Firebase project config
+.firebaserc

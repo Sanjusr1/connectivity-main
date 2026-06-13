@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,28 +8,43 @@ import '../services/sensor_info_service.dart';
 import '../theme/app_theme.dart';
 import 'sensor_detail_screen.dart';
 
-class SensorListScreen extends StatelessWidget {
+class SensorListScreen extends StatefulWidget {
   const SensorListScreen({super.key});
 
   @override
+  State<SensorListScreen> createState() => _SensorListScreenState();
+}
+
+class _SensorListScreenState extends State<SensorListScreen> {
+  late final Future<List<SensorInfo>> _sensorsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _sensorsFuture = SensorInfoService().loadSensors();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Consumer<MonitoringProvider>(
-      builder: (context, monitor, _) {
-        return FutureBuilder<List<SensorInfo>>(
-          future: SensorInfoService().loadSensors(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+    return FutureBuilder<List<SensorInfo>>(
+      future: _sensorsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-            if (snapshot.hasError) {
-              return Center(
-                child: Text('Unable to load sensors: ${snapshot.error}'),
-              );
-            }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Unable to load sensors: ${snapshot.error}'),
+          );
+        }
 
-            final sensors = snapshot.data ?? [];
+        final sensors = snapshot.data ?? [];
 
+        return Selector<MonitoringProvider, Set<String>>(
+          selector: (context, monitor) => monitor.activeSensorIds,
+          shouldRebuild: (prev, next) => !setEquals(prev, next),
+          builder: (context, activeSensorIds, _) {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
@@ -47,9 +63,12 @@ class SensorListScreen extends StatelessWidget {
                     sensor: sensors[i],
                     color:
                         AppTheme.sensorColors[i % AppTheme.sensorColors.length],
-                    isCollecting: monitor.isSensorActive(sensors[i].id),
+                    isCollecting: activeSensorIds.contains(sensors[i].id),
                     onCollectChanged: (value) {
-                      monitor.setSensorActive(sensors[i].id, value);
+                      context.read<MonitoringProvider>().setSensorActive(
+                            sensors[i].id,
+                            value,
+                          );
                     },
                   ),
               ],

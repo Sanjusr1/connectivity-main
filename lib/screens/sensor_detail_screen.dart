@@ -41,9 +41,9 @@ class SensorDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Consumer<MonitoringProvider>(
-            builder: (context, monitor, _) {
-              final isCollecting = monitor.isSensorActive(sensor.id);
+          Selector<MonitoringProvider, bool>(
+            selector: (context, monitor) => monitor.isSensorActive(sensor.id),
+            builder: (context, isCollecting, _) {
               return Container(
                 margin: const EdgeInsets.only(bottom: 14),
                 padding: const EdgeInsets.all(16),
@@ -54,7 +54,10 @@ class SensorDetailScreen extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   value: isCollecting,
                   onChanged: (value) {
-                    monitor.setSensorActive(sensor.id, value);
+                    context.read<MonitoringProvider>().setSensorActive(
+                          sensor.id,
+                          value,
+                        );
                   },
                   title: const Text('Collect this sensor individually'),
                   subtitle: Text(

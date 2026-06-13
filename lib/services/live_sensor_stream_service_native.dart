@@ -77,6 +77,7 @@ class LiveSensorStreamService implements SensorStreamService {
       final socket = await Socket.connect(
         config.wifiHost.trim(),
         config.wifiPort,
+        timeout: const Duration(seconds: 5),
       );
       _wifiSocket = socket;
       yield* _splitPackets(socket.cast<List<int>>()).map(_decodePacketBytes);
@@ -88,6 +89,8 @@ class LiveSensorStreamService implements SensorStreamService {
       throw SensorConnectionException(
         'Wi-Fi stream handshake failed: ${error.message}.',
       );
+    } finally {
+      await disconnect();
     }
   }
 
