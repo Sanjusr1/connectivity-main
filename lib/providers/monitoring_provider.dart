@@ -189,6 +189,12 @@ class MonitoringProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<LocalDataExportResult> exportLocalData(
+    LocalExportFormat format,
+  ) async {
+    return _storageService.exportLocalEntries(format);
+  }
+
   void setConnectionType(SensorConnectionType value) {
     _connectionConfig = _connectionConfig.copyWith(connectionType: value);
     _lastError = null;

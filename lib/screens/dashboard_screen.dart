@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/sensor_connection_config.dart';
 import '../models/sensor_data.dart';
 import '../providers/monitoring_provider.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/sensor_line_chart.dart';
 import '../widgets/value_tile.dart';
@@ -932,6 +933,14 @@ class _StorageOptions extends StatelessWidget {
             title: const Text('Store Locally'),
             subtitle: const Text('Hive box: sensor_data_entries'),
           ),
+          if (monitor.storeLocally) ...[
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: () => _showExportOptions(context),
+              icon: const Icon(Icons.file_download_outlined),
+              label: const Text('Export Local Data'),
+            ),
+          ],
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: monitor.storeInCloud,
@@ -944,5 +953,77 @@ class _StorageOptions extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _showExportOptions(BuildContext context) async {
+    final format = await showModalBottomSheet<LocalExportFormat>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Export format',
+                  style: Theme.of(sheetContext).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.data_object),
+                  title: const Text('JSON'),
+                  subtitle: const Text(
+                    'Best for apps, code, and full raw data',
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop(LocalExportFormat.json);
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.table_chart_outlined),
+                  title: const Text('CSV'),
+                  subtitle: const Text('Best for Excel, Sheets, and analysis'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop(LocalExportFormat.csv);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (format == null || !context.mounted) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await monitor.exportLocalData(format);
+      if (!context.mounted) {
+        return;
+      }
+
+      final destination = result.file.path ?? result.file.fileName;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Exported ${result.entryCount} entries to $destination',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+
+      messenger.showSnackBar(SnackBar(content: Text('Export failed: $error')));
+    }
   }
 }

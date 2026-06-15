@@ -27,6 +27,7 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.firebase/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
@@ -52,7 +53,6 @@ backend/**/*.pyc
 backend/.pytest_cache/
 backend/.mypy_cache/
 backend/.ruff_cache/
-
 # Firebase Hosting CLI Cache
 .firebase/
 

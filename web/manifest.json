@@ -1,11 +1,11 @@
 {
-    "name": "connectivity_sensor_app",
-    "short_name": "connectivity_sensor_app",
+    "name": "avc",
+    "short_name": "avc",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "AVC sensor monitoring app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
