@@ -26,6 +26,10 @@ Navigate to the `backend` folder, activate the virtual environment, and run the 
    ```powershell
    python run_mock_websocket.py
    ```
+5. **View Database Records**:
+   ```powershell
+   python read_db.py
+   ```
 
 ---
 
