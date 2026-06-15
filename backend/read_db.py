@@ -22,6 +22,17 @@ def main():
         print(f"  Total Rows: {count}")
         print(f"  Columns: {', '.join(columns)}")
         print("-" * 30)
+    # Print recent sensor data
+    print("\nLatest 5 records in sensor_data:")
+    print("-" * 70)
+    try:
+        cur.execute("SELECT id, session_id, timestamp, temperature, humidity, airflow, pressure FROM sensor_data ORDER BY id DESC LIMIT 5;")
+        rows = cur.fetchall()
+        for row in rows:
+            print(f"ID: {row[0]:<3} | Session: {row[1]:<2} | Time: {row[2]} | Temp: {row[3]:.1f}C | Hum: {row[4]:.1f}% | Airflow: {row[5]:.2f}")
+    except Exception as e:
+        print("Could not fetch rows:", e)
+    print("-" * 70)
         
     conn.close()
 
